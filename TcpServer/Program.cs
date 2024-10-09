@@ -122,8 +122,7 @@ class TcpServer
 
     private void HandleGameActions(ByteBuffer buffer)
     {
-        byte actionType = buffer.GetByte();
-        //int playerId = buffer.GetInt();
+        int actionType = buffer.GetInt();
 
         switch (actionType)
         {
@@ -131,15 +130,70 @@ class TcpServer
                 int weaponId = buffer.GetInt();
                 Console.WriteLine($"Player changed weapon to {weaponId}");
                 break;
+
             case 1: // Fire weapon
-                Console.WriteLine($"Player fired their weapon.");
+                Console.WriteLine("Player fired their weapon.");
                 break;
-            // Add more cases for other actions as defined in your client
+
+            case 2: // Damage dealt to another player
+                int receiverId = buffer.GetInt();
+                float damageAmount = buffer.GetFloat();
+                int damageCriticalCode = buffer.GetInt();
+                float posX = buffer.GetFloat();
+                float posY = buffer.GetFloat();
+                float posZ = buffer.GetFloat();
+                Console.WriteLine($"Player dealt {damageAmount} damage to {receiverId} (critical code {damageCriticalCode}) at position ({posX}, {posY}, {posZ})");
+                break;
+
+            case 3: // Player died
+                int killedId = buffer.GetInt();
+                int killerId = buffer.GetInt();
+                int criticalCode = buffer.GetInt();
+                Console.WriteLine($"Player {killedId} was killed by {killerId} with critical code {criticalCode}");
+                break;
+
+            case 4: // Chat message received
+                string message = buffer.GetString(); // Read the length of the message
+                Console.WriteLine($"Chat message from Player: {message}");
+                break;
+
+            case 5: // Player appearance change
+                int appearancePlayerId = buffer.GetInt();
+                int holo = buffer.GetInt();
+                int head = buffer.GetInt();
+                int face = buffer.GetInt();
+                int gloves = buffer.GetInt();
+                int upperBody = buffer.GetInt();
+                int lowerBody = buffer.GetInt();
+                int boots = buffer.GetInt();
+                Console.WriteLine($"Player {appearancePlayerId} changed appearance: Holo {holo}, Head {head}, Face {face}, Gloves {gloves}, Upper Body {upperBody}, Lower Body {lowerBody}, Boots {boots}");
+                break;
+
+            //case 6: // Player left
+            //    int leftPlayerId = buffer.GetInt();
+            //    Console.WriteLine($"Player left: ID {leftPlayerId}");
+            //    break;
+
+            //case 7: // Change appearance
+            //    int appearancePlayerId = buffer.GetInt();
+            //    int holo = buffer.GetInt();
+            //    int head = buffer.GetInt();
+            //    int face = buffer.GetInt();
+            //    int gloves = buffer.GetInt();
+            //    int upperBody = buffer.GetInt();
+            //    int lowerBody = buffer.GetInt();
+            //    int boots = buffer.GetInt();
+            //    Console.WriteLine($"Player {appearancePlayerId} changed appearance: Holo {holo}, Head {head}, Face {face}, Gloves {gloves}, Upper Body {upperBody}, Lower Body {lowerBody}, Boots {boots}");
+            //    break;
+
+            // Add more cases for additional actions as needed
+
             default:
                 Console.WriteLine("Unknown action type.");
                 break;
         }
     }
+
 
     public void Stop()
     {
