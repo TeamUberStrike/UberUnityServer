@@ -1,89 +1,155 @@
 ﻿using System;
-using System.Text;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
+using System.Threading;
 
-public class serv
+class TcpServer
 {
-    public static void Main()
+    private TcpListener listener;
+    private bool isRunning;
+    private List<TcpClient> clients = new List<TcpClient>();
+    private const int SERIAL_X = 12345;
+    private const int SERIAL_Y = 67890;
+
+    public TcpServer(string ip, int port)
     {
-        try
+        listener = new TcpListener(IPAddress.Parse(ip), port);
+        isRunning = true;
+    }
+
+    public void Start()
+    {
+        listener.Start();
+        Console.WriteLine("Server started, waiting for connections...");
+
+        while (isRunning)
         {
-            IPAddress ipAd = IPAddress.Parse("192.168.31.5");
-            // use local m/c IP address, and 
-            // use the same in the client
+            TcpClient client = listener.AcceptTcpClient();
+            Console.WriteLine("Client connected.");
+            clients.Add(client);
 
-            /* Initializes the Listener */
-            TcpListener listener = new TcpListener(ipAd, 8001);
-
-            /* Start Listeneting at the specified port */
-            listener.Start();
-            Console.WriteLine("The server is running at port 8001...");
-            Console.WriteLine("The local End point is  :" +
-            listener.LocalEndpoint);
-            Console.WriteLine("Waiting for a connection.....");
-
-            while (true)
-            {
-                // Accept an incoming client connection
-                using (TcpClient client = listener.AcceptTcpClient())
-                {
-                    Console.WriteLine("Client connected.");
-
-                    // Get the network stream
-                    using (NetworkStream ns = client.GetStream())
-                    {
-                        // Buffer to hold the incoming data
-                        byte[] buffer = new byte[1024];
-                        int bytesRead = ns.Read(buffer, 0, buffer.Length);
-
-                        // Convert the received data to a string
-                        string message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                        Console.WriteLine("Received message: " + message);
-                    }
-                }
-            }
-
-        }
-
-
-        //    while (true)
-        //    {
-        //        TcpClient client = await listener.AcceptTcpClientAsync();
-        //        Console.WriteLine("Client connected.");
-        //        NetworkStream stream = client.GetStream();
-        //        byte[] buffer = new byte[8192];
-        //        int bytesRead;
-        //        try
-        //        {
-        //            while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length)) != 0)
-        //            {
-        //                byte[] receivedData = new byte[bytesRead];
-        //                Array.Copy(buffer, 0, receivedData, 0, bytesRead);
-
-        //                string receivedText = Encoding.UTF8.GetString(receivedData);
-        //                Console.WriteLine($"Received: {receivedText}");
-
-        //                // Echo the data back to the client
-        //                //await stream.WriteAsync(receivedData, 0, receivedData.Length);
-        //            }
-        //        }
-
-        //    }
-        //}
-
-
-
-
-
-
-
-
-
-        catch (Exception e)
-        {
-            Console.WriteLine("Error..... " + e.StackTrace);
+            Thread clientThread = new Thread(() => HandleClient(client));
+            clientThread.Start();
         }
     }
 
+    private void HandleClient(TcpClient client)
+    {
+        using (NetworkStream stream = client.GetStream())
+        {
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+
+            try
+            {
+                while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    ProcessPacket(buffer, bytesRead, stream);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error handling client: " + ex.Message);
+            }
+            finally
+            {
+                client.Close();
+                clients.Remove(client);
+                Console.WriteLine("Client disconnected.");
+            }
+        }
+    }
+
+    private void ProcessPacket(byte[] data, int length, NetworkStream stream)
+    {
+        ByteBuffer buffer = new ByteBuffer(data);
+
+        //if (buffer.GetPointer() == 0) return; // No data
+
+        byte protocol = buffer.GetByte();
+
+        if (protocol == 0) // Handshake response
+        {
+            HandleHandshake(buffer, stream);
+        }
+        else if (protocol == 1) // Player position update
+        {
+            UpdatePlayerPositions(buffer);
+        }
+        else if (protocol == 2) // Various game actions
+        {
+            HandleGameActions(buffer);
+        }
+    }
+
+    private void HandleHandshake(ByteBuffer buffer, NetworkStream stream)
+    {
+        if (buffer.GetInt() == SERIAL_Y && buffer.GetInt() == SERIAL_X)
+        {
+            int playerId = buffer.GetInt();
+            string playerName = buffer.GetString();
+
+            // Send back a confirmation and other player data
+            ByteBuffer response = new ByteBuffer();
+            response.Put((byte)0); // Response type
+            response.Put(SERIAL_Y);
+            response.Put(SERIAL_X);
+            response.Put(playerId);
+            // Send player count and other necessary data
+            response.Put(1); // For example, number of players currently connected
+            response.Put(playerId); // Send the player's ID for confirmation
+
+            stream.Write(response.Trim().Get(), 0, response.Trim().Get().Length);
+            Console.WriteLine($"Handshake completed for player: {playerName}");
+        }
+    }
+
+    private void UpdatePlayerPositions(ByteBuffer buffer)
+    {
+        int playerCount = buffer.GetInt();
+        for (int i = 0; i < playerCount; i++)
+        {
+            int playerId = buffer.GetInt();
+            float x = buffer.GetFloat();
+            float y = buffer.GetFloat();
+            float z = buffer.GetFloat();
+            // Here you would update your player positions on the server
+            Console.WriteLine($"Player {playerId} moved to: {x}, {y}, {z}");
+        }
+    }
+
+    private void HandleGameActions(ByteBuffer buffer)
+    {
+        byte actionType = buffer.GetByte();
+        //int playerId = buffer.GetInt();
+
+        switch (actionType)
+        {
+            case 0: // Change weapon
+                int weaponId = buffer.GetInt();
+                Console.WriteLine($"Player changed weapon to {weaponId}");
+                break;
+            case 1: // Fire weapon
+                Console.WriteLine($"Player fired their weapon.");
+                break;
+            // Add more cases for other actions as defined in your client
+            default:
+                Console.WriteLine("Unknown action type.");
+                break;
+        }
+    }
+
+    public void Stop()
+    {
+        isRunning = false;
+        listener.Stop();
+    }
+
+    static void Main(string[] args)
+    {
+        TcpServer server = new TcpServer("192.168.31.5", 8001);
+        server.Start();
+    }
 }
