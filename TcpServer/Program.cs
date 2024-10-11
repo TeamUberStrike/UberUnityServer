@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -44,6 +45,8 @@ class TcpServer
 
             try
             {
+                InitiateHandshake(stream);
+
                 while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
                 {
                     ProcessPacket(buffer, bytesRead, stream);
@@ -60,6 +63,40 @@ class TcpServer
                 Console.WriteLine("Client disconnected.");
             }
         }
+    }
+
+    private void InitiateHandshake(NetworkStream stream)
+    {
+        ByteBuffer handshakeRequest = new ByteBuffer();
+        //handshakeRequest.Put((byte)0); // Handshake request protocol
+        handshakeRequest.Put(SERIAL_X);
+        handshakeRequest.Put(SERIAL_Y);
+        int id = 1;
+        handshakeRequest.Put(id);
+        int playerCount = 1;
+        handshakeRequest.Put(playerCount);
+
+        int playerId = 1;
+        handshakeRequest.Put(playerId);
+        string playerJoined = "HaZard";
+        handshakeRequest.Put(playerJoined);
+        handshakeRequest.Put(playerId);
+
+        int appearance = -1; // 7 times
+        handshakeRequest.Put(appearance);
+        handshakeRequest.Put(appearance);
+        handshakeRequest.Put(appearance);
+        handshakeRequest.Put(appearance);
+        handshakeRequest.Put(appearance);
+        handshakeRequest.Put(appearance);
+        handshakeRequest.Put(appearance);
+
+        int playerStats = 0; // 2 times
+        handshakeRequest.Put(playerStats);
+        handshakeRequest.Put(playerStats);
+
+        stream.Write(handshakeRequest.Trim().Get(), 0, handshakeRequest.Trim().Get().Length);
+        Console.WriteLine("Handshake initiated with client.");
     }
 
     private void ProcessPacket(byte[] data, int length, NetworkStream stream)
@@ -88,36 +125,48 @@ class TcpServer
     {
         if (buffer.GetInt() == SERIAL_Y && buffer.GetInt() == SERIAL_X)
         {
-            int playerId = buffer.GetInt();
             string playerName = buffer.GetString();
 
-            // Send back a confirmation and other player data
-            ByteBuffer response = new ByteBuffer();
-            response.Put((byte)0); // Response type
-            response.Put(SERIAL_Y);
-            response.Put(SERIAL_X);
-            response.Put(playerId);
-            // Send player count and other necessary data
-            response.Put(1); // For example, number of players currently connected
-            response.Put(playerId); // Send the player's ID for confirmation
 
-            stream.Write(response.Trim().Get(), 0, response.Trim().Get().Length);
+            //// Send back a confirmation and other player data
+            //ByteBuffer response = new ByteBuffer();
+            //response.Put((byte)0); // Response type
+            //response.Put(SERIAL_Y);
+            //response.Put(SERIAL_X);
+            //response.Put(playerId);
+            //// Send player count and other necessary data
+            //response.Put(1); // For example, number of players currently connected
+            //response.Put(playerId); // Send the player's ID for confirmation
+            //stream.Write(response.Trim().Get(), 0, response.Trim().Get().Length);
+
             Console.WriteLine($"Handshake completed for player: {playerName}");
         }
     }
 
     private void UpdatePlayerPositions(ByteBuffer buffer)
     {
-        int playerCount = buffer.GetInt();
-        for (int i = 0; i < playerCount; i++)
-        {
-            int playerId = buffer.GetInt();
-            float x = buffer.GetFloat();
-            float y = buffer.GetFloat();
-            float z = buffer.GetFloat();
-            // Here you would update your player positions on the server
-            Console.WriteLine($"Player {playerId} moved to: {x}, {y}, {z}");
-        }
+        float x = buffer.GetFloat();
+        float y = buffer.GetFloat();
+        float z = buffer.GetFloat();
+
+        float xr = buffer.GetFloat();
+        float yr = buffer.GetFloat();
+        float zr = buffer.GetFloat();
+
+        float xc = buffer.GetFloat();
+        float yc = buffer.GetFloat();
+        float zc = buffer.GetFloat();
+        //int playerCount = buffer.GetInt();
+        Console.WriteLine($"Player moved to: {x}, {y}, {z}");
+        //for (int i = 0; i < playerCount; i++)
+        //{
+        //    int playerId = buffer.GetInt();
+        //    float x = buffer.GetFloat();
+        //    float y = buffer.GetFloat();
+        //    float z = buffer.GetFloat();
+        //    // Here you would update your player positions on the server
+        //    Console.WriteLine($"Player {playerId} moved to: {x}, {y}, {z}");
+        //}
     }
 
     private void HandleGameActions(ByteBuffer buffer)
@@ -155,6 +204,46 @@ class TcpServer
             case 4: // Chat message received
                 string message = buffer.GetString(); // Read the length of the message
                 Console.WriteLine($"Chat message from Player: {message}");
+                //protocol 2, argument 6
+                ByteBuffer sendBuffer = new ByteBuffer();
+                sendBuffer.Put((byte)2);
+                sendBuffer.Put(6); // put int
+                sendBuffer.Put(message);
+
+                foreach (var client in clients)
+                {
+                    try
+                    {
+                        NetworkStream ns = client.GetStream();
+
+                        if (ns.CanWrite)
+                        {
+                            ns.Write(sendBuffer.Trim().Get(), 0, sendBuffer.Trim().Get().Length);
+                        }
+
+                    }
+                    catch (SocketException se)
+                    {
+                        Console.WriteLine("SE:" + se);
+                    }
+                }
+
+                //Send(buffer.Trim().Get());
+                //try
+                //{
+                //    NetworkStream ns = client.GetStream();
+
+                //    if (ns.CanWrite)
+                //    {
+                //        ns.Write(data, 0, data.Length);
+                //    }
+
+                //}
+                //catch (SocketException se)
+                //{
+                //    Debug.LogError("SE:" + se);
+                //}
+
                 break;
 
             case 5: // Player appearance change
@@ -191,6 +280,25 @@ class TcpServer
             default:
                 Console.WriteLine("Unknown action type.");
                 break;
+
+                //private void HandlePlayerJoined(int playerId, string playerName)
+                //{
+                //    Console.WriteLine($"Player joined: ID {playerId}, Name {playerName}");
+
+                //    // Create a buffer to send to all clients
+                //    ByteBuffer buffer = new ByteBuffer();
+                //    buffer.Put((byte)2); // Protocol for player actions
+                //    buffer.Put((byte)0); // Argument for player joined
+                //    buffer.Put(playerId);
+                //    buffer.Put(playerName);
+
+                //    // Send the buffer to all connected clients
+                //    foreach (var client in clients)
+                //    {
+                //        SendToClient(client, buffer);
+                //    }
+                //}
+
         }
     }
 
