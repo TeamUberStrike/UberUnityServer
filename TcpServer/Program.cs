@@ -156,17 +156,9 @@ class TcpServer
         float xc = buffer.GetFloat();
         float yc = buffer.GetFloat();
         float zc = buffer.GetFloat();
-        //int playerCount = buffer.GetInt();
-        Console.WriteLine($"Player moved to: {x}, {y}, {z}");
-        //for (int i = 0; i < playerCount; i++)
-        //{
-        //    int playerId = buffer.GetInt();
-        //    float x = buffer.GetFloat();
-        //    float y = buffer.GetFloat();
-        //    float z = buffer.GetFloat();
-        //    // Here you would update your player positions on the server
-        //    Console.WriteLine($"Player {playerId} moved to: {x}, {y}, {z}");
-        //}
+
+        //Console.WriteLine($"Player moved to: {x}, {y}, {z}");
+
     }
 
     private void HandleGameActions(ByteBuffer buffer)
@@ -207,7 +199,11 @@ class TcpServer
                 //protocol 2, argument 6
                 ByteBuffer sendBuffer = new ByteBuffer();
                 sendBuffer.Put((byte)2);
-                sendBuffer.Put(6); // put int
+                sendBuffer.Put((byte)6);
+
+                int playerId = 1;
+                sendBuffer.Put(playerId);
+
                 sendBuffer.Put(message);
 
                 foreach (var client in clients)
