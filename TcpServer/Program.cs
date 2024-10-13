@@ -187,10 +187,9 @@ class TcpServer
                 break;
 
             case 3: // Player died
-                int killedId = buffer.GetInt();
                 int killerId = buffer.GetInt();
                 int criticalCode = buffer.GetInt();
-                Console.WriteLine($"Player {killedId} was killed by {killerId} with critical code {criticalCode}");
+                Console.WriteLine($"Player was killed by {killerId} with critical code {criticalCode}");
                 break;
 
             case 4: // Chat message received
@@ -243,7 +242,6 @@ class TcpServer
                 break;
 
             case 5: // Player appearance change
-                int appearancePlayerId = buffer.GetInt();
                 int holo = buffer.GetInt();
                 int head = buffer.GetInt();
                 int face = buffer.GetInt();
@@ -251,7 +249,7 @@ class TcpServer
                 int upperBody = buffer.GetInt();
                 int lowerBody = buffer.GetInt();
                 int boots = buffer.GetInt();
-                Console.WriteLine($"Player {appearancePlayerId} changed appearance: Holo {holo}, Head {head}, Face {face}, Gloves {gloves}, Upper Body {upperBody}, Lower Body {lowerBody}, Boots {boots}");
+                Console.WriteLine($"Player changed appearance: Holo {holo}, Head {head}, Face {face}, Gloves {gloves}, Upper Body {upperBody}, Lower Body {lowerBody}, Boots {boots}");
                 break;
 
             //case 6: // Player left
