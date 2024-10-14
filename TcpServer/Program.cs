@@ -11,6 +11,7 @@ class TcpServer
     private TcpListener listener;
     private bool isRunning;
     private List<TcpClient> clients = new List<TcpClient>();
+    private List<PlayerData> playerDatas = new List<PlayerData>();
     private const int SERIAL_X = 12345;
     private const int SERIAL_Y = 67890;
 
@@ -200,44 +201,12 @@ class TcpServer
                 sendBuffer.Put((byte)2);
                 sendBuffer.Put((byte)6);
 
-                int playerId = 1;
+                int playerId = 1;  //do not hardcode playerId here
                 sendBuffer.Put(playerId);
 
                 sendBuffer.Put(message);
 
-                foreach (var client in clients)
-                {
-                    try
-                    {
-                        NetworkStream ns = client.GetStream();
-
-                        if (ns.CanWrite)
-                        {
-                            ns.Write(sendBuffer.Trim().Get(), 0, sendBuffer.Trim().Get().Length);
-                        }
-
-                    }
-                    catch (SocketException se)
-                    {
-                        Console.WriteLine("SE:" + se);
-                    }
-                }
-
-                //Send(buffer.Trim().Get());
-                //try
-                //{
-                //    NetworkStream ns = client.GetStream();
-
-                //    if (ns.CanWrite)
-                //    {
-                //        ns.Write(data, 0, data.Length);
-                //    }
-
-                //}
-                //catch (SocketException se)
-                //{
-                //    Debug.LogError("SE:" + se);
-                //}
+                SendToAllClients(sendBuffer.Trim().Get());
 
                 break;
 
@@ -296,6 +265,26 @@ class TcpServer
         }
     }
 
+    private void SendToAllClients(byte[] data)
+    {
+        foreach (var client in clients)
+        {
+            try
+            {
+                NetworkStream ns = client.GetStream();
+
+                if (ns.CanWrite)
+                {
+                    ns.Write(data, 0, data.Length);
+                }
+
+            }
+            catch (SocketException se)
+            {
+                Console.WriteLine("SE:" + se);
+            }
+        }
+    }
 
     public void Stop()
     {
