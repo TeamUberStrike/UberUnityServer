@@ -137,35 +137,13 @@ class TcpServer
             newPlayer.id = id;
             playerDatas.Add(newPlayer);
 
-
-            //// Send back a confirmation and other player data
-            //ByteBuffer response = new ByteBuffer();
-            //response.Put((byte)0); // Response type
-            //response.Put(SERIAL_Y);
-            //response.Put(SERIAL_X);
-            //response.Put(playerId);
-            //// Send player count and other necessary data
-            //response.Put(1); // For example, number of players currently connected
-            //response.Put(playerId); // Send the player's ID for confirmation
-            //stream.Write(response.Trim().Get(), 0, response.Trim().Get().Length);
-
-            // send player joined: protocol 2, argument 0
             ByteBuffer response = new ByteBuffer();
             response.Put((byte)2); // protocol type
             response.Put((byte)0); // player Joined
             response.Put(id); // player id starting from 1 or 0?
             response.Put(playerName);
-            SendToAllClients(response.Trim().Get());
-            // compiled client entered match twice, make sure it enters only once
+            SendToAllClients(response.Trim().Get()); // send to all except self(player id)
 
-            //message was like this:
-            //ByteBuffer sendBuffer = new ByteBuffer();
-            //sendBuffer.Put((byte)2);
-            //sendBuffer.Put((byte)6);
-
-            //sendBuffer.Put(id);
-
-            //sendBuffer.Put(message);
             Console.WriteLine($"Handshake completed for player: {playerName}");
         }
     }
