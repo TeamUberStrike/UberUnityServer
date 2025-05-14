@@ -142,7 +142,7 @@ class TcpServer
             response.Put((byte)0); // player Joined
             response.Put(id); // player id starting from 1 or 0?
             response.Put(playerName);
-            SendToAllClients(response.Trim().Get()); // send to all except self(player id)
+            SendToOtherClients(response.Trim().Get(), id); // send to all except self(player id)
 
             Console.WriteLine($"Handshake completed for player: {playerName}");
         }
@@ -288,6 +288,33 @@ class TcpServer
     {
         foreach (var client in clients)
         {
+            try
+            {
+                NetworkStream ns = client.GetStream();
+
+                if (ns.CanWrite)
+                {
+                    ns.Write(data, 0, data.Length);
+                }
+
+            }
+            catch (SocketException se)
+            {
+                Console.WriteLine("SE:" + se);
+            }
+        }
+    }
+
+    private void SendToOtherClients(byte[] data, int allExceptId)
+    {
+        for (int i = 0; i < clients.Count; i++)
+        {
+            var client = clients[i];
+            if (i == allExceptId-1)
+            {
+                continue;
+            }
+
             try
             {
                 NetworkStream ns = client.GetStream();
