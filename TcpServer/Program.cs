@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
-using System.Text;
-using System.Threading;
 
 class TcpServer
 {
@@ -66,9 +61,7 @@ class TcpServer
 
     private void InitiateHandshake(NetworkStream stream, int id)
     {
-        // at this point: do not add the latest client yet, all the currently available playerDatas are sent
         ByteBuffer handshakeRequest = new ByteBuffer();
-        //handshakeRequest.Put((byte)0); // Handshake request protocol
         handshakeRequest.Put(SERIAL_X);
         handshakeRequest.Put(SERIAL_Y);
 
@@ -109,8 +102,6 @@ class TcpServer
     private void ProcessPacket(byte[] data, int length, NetworkStream stream, int id)
     {
         ByteBuffer buffer = new ByteBuffer(data);
-
-        //if (buffer.GetPointer() == 0) return; // No data
 
         byte protocol = buffer.GetByte();
 
@@ -240,47 +231,9 @@ class TcpServer
                 Console.WriteLine($"Player changed appearance: Holo {playerDatas[id - 1].holo}, Head {playerDatas[id - 1].head}, Face {playerDatas[id - 1].face}, Gloves {playerDatas[id - 1].gloves}, Upper Body {playerDatas[id - 1].upperbody}, Lower Body {playerDatas[id - 1].lowerbody}, Boots {playerDatas[id - 1].boots}");
                 break;
 
-            //case 6: // Player left
-            //    int leftPlayerId = buffer.GetInt();
-            //    Console.WriteLine($"Player left: ID {leftPlayerId}");
-            //    break;
-
-            //case 7: // Change appearance
-            //    int appearancePlayerId = buffer.GetInt();
-            //    int holo = buffer.GetInt();
-            //    int head = buffer.GetInt();
-            //    int face = buffer.GetInt();
-            //    int gloves = buffer.GetInt();
-            //    int upperBody = buffer.GetInt();
-            //    int lowerBody = buffer.GetInt();
-            //    int boots = buffer.GetInt();
-            //    Console.WriteLine($"Player {appearancePlayerId} changed appearance: Holo {holo}, Head {head}, Face {face}, Gloves {gloves}, Upper Body {upperBody}, Lower Body {lowerBody}, Boots {boots}");
-            //    break;
-
-            // Add more cases for additional actions as needed
-
             default:
                 Console.WriteLine("Unknown action type.");
                 break;
-
-                //private void HandlePlayerJoined(int playerId, string playerName)
-                //{
-                //    Console.WriteLine($"Player joined: ID {playerId}, Name {playerName}");
-
-                //    // Create a buffer to send to all clients
-                //    ByteBuffer buffer = new ByteBuffer();
-                //    buffer.Put((byte)2); // Protocol for player actions
-                //    buffer.Put((byte)0); // Argument for player joined
-                //    buffer.Put(playerId);
-                //    buffer.Put(playerName);
-
-                //    // Send the buffer to all connected clients
-                //    foreach (var client in clients)
-                //    {
-                //        SendToClient(client, buffer);
-                //    }
-                //}
-
         }
     }
 
