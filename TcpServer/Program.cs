@@ -131,7 +131,7 @@ class TcpServer
             ByteBuffer response = new ByteBuffer();
             response.Put((byte)2); // protocol type
             response.Put((byte)0); // player Joined
-            response.Put(id); // player id starting from 1 or 0?
+            response.Put(id);
             response.Put(playerName);
             SendToOtherClients(response.Trim().Get(), id); // send to all except self(player id)
 
