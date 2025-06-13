@@ -293,7 +293,7 @@ class TcpServer
 
     static void Main(string[] args)
     {
-        TcpServer server = new TcpServer("192.168.1.158", 8001);
+        TcpServer server = new TcpServer("127.0.0.1", 8001);
         server.Start();
     }
 }
