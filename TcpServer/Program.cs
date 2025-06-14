@@ -293,7 +293,11 @@ class TcpServer
 
     static void Main(string[] args)
     {
-        TcpServer server = new TcpServer("127.0.0.1", 8001);
+        ServerConfig config = ServerConfig.Load("config.json");
+
+        Console.WriteLine($"[Config] Starting server on {config.ip}:{config.port}");
+
+        TcpServer server = new TcpServer(config.ip, config.port);
         server.Start();
     }
 }
