@@ -57,4 +57,21 @@ public class PlayerData
     {
         this.name = name;
     }
+    public System.Numerics.Vector3 position
+    {
+        get { return new System.Numerics.Vector3(x, y, z); }
+        set { x = value.X; y = value.Y; z = value.Z; }
+    }
+
+    public System.Numerics.Vector3 rotation
+    {
+        get { return new System.Numerics.Vector3(xr, yr, zr); }
+        set { xr = value.X; yr = value.Y; zr = value.Z; }
+    }
+
+    public System.Numerics.Vector3 subRotation
+    {
+        get { return new System.Numerics.Vector3(xc, yc, zc); }
+        set { xc = value.X; yc = value.Y; zc = value.Z; }
+    }
 }
