@@ -9,7 +9,6 @@ class TcpServer
     private List<PlayerData> playerDatas = new List<PlayerData>();
     private const int SERIAL_X = 12345;
     private const int SERIAL_Y = 67890;
-    bool broadcastStarted = false;
 
     public TcpServer(string ip, int port)
     {
@@ -49,29 +48,12 @@ class TcpServer
                     ProcessPacket(buffer, bytesRead, stream, id);
                 }
             }
-            catch (IOException ioEx)
-            {
-                Console.WriteLine($"[CLIENT {id}] Connection closed: {ioEx.Message}");
-            }
-            catch (SocketException sockEx)
-            {
-                Console.WriteLine($"[CLIENT {id}] Socket error: {sockEx.Message}");
-            }
             finally
             {
                 client.Close();
                 clients.Remove(client);
                 playerDatas.RemoveAll(player => player.id == id);
-
                 Console.WriteLine("Current amount of player datas: " + playerDatas.Count);
-                Console.WriteLine("Client disconnected.");
-                ByteBuffer playerLeftBuffer = new ByteBuffer();
-                playerLeftBuffer.Put((byte)2); // protocol type
-                playerLeftBuffer.Put((byte)1); // argument = PlayerLeft
-                playerLeftBuffer.Put(id);      // id of player that left
-                SendToAllClients(playerLeftBuffer.Trim().Get());
-
-                Console.WriteLine($"[SERVER] Notified all clients that Player {id} left.");
                 Console.WriteLine("Client disconnected.");
             }
         }
@@ -100,7 +82,6 @@ class TcpServer
             handshakeRequest.Put(name);
 
             //appearance
-
             handshakeRequest.Put(playerData.holo);
             handshakeRequest.Put(playerData.head);
             handshakeRequest.Put(playerData.face);
@@ -130,7 +111,7 @@ class TcpServer
         }
         else if (protocol == 1) // Player position update
         {
-            UpdatePlayerPositions(buffer, id);
+            UpdatePlayerPositions(buffer);
         }
         else if (protocol == 2) // Various game actions
         {
@@ -155,25 +136,10 @@ class TcpServer
             SendToOtherClients(response.Trim().Get(), id); // send to all except self(player id)
 
             Console.WriteLine($"Handshake completed for player: {playerName}");
-
-            if (!broadcastStarted)
-            {
-                broadcastStarted = true;
-                new Thread(() =>
-                {
-                    while (isRunning)
-                    {
-                        BroadcastPlayerPositions();
-                        Thread.Sleep(50);
-                    }
-                }).Start();
-
-                Console.WriteLine("Broadcast thread started.");
-            }
         }
     }
 
-    private void UpdatePlayerPositions(ByteBuffer buffer,int id)
+    private void UpdatePlayerPositions(ByteBuffer buffer)
     {
         float x = buffer.GetFloat();
         float y = buffer.GetFloat();
@@ -187,45 +153,11 @@ class TcpServer
         float yc = buffer.GetFloat();
         float zc = buffer.GetFloat();
 
-        PlayerData pData = playerDatas.Find(p => p.id == id);
-        if (pData != null)
-        {
-            pData.position = new System.Numerics.Vector3(x, y, z);
-            pData.rotation = new System.Numerics.Vector3(xr, yr, zr);
-            pData.subRotation = new System.Numerics.Vector3(xc, yc, zc);
-        }
+        //Console.WriteLine($"Player moved to: {x}, {y}, {z}");
 
     }
 
-    private void BroadcastPlayerPositions()
-    {
-        ByteBuffer buffer = new ByteBuffer();
-        buffer.Put((byte)2); // Protocol 2
-        buffer.Put((byte)9); // Argument 9 = Player positions
-
-        buffer.Put(playerDatas.Count);
-
-        foreach (var player in playerDatas)
-        {
-            buffer.Put(player.id);
-
-            buffer.Put(player.position.X);
-            buffer.Put(player.position.Y);
-            buffer.Put(player.position.Z);
-
-            buffer.Put(player.rotation.X);
-            buffer.Put(player.rotation.Y);
-            buffer.Put(player.rotation.Z);
-
-            buffer.Put(player.subRotation.X);
-            buffer.Put(player.subRotation.Y);
-            buffer.Put(player.subRotation.Z);
-        }
-
-        SendToAllClients(buffer.Trim().Get());
-    }
-
-    private void HandleGameActions(ByteBuffer buffer, int id) 
+    private void HandleGameActions(ByteBuffer buffer, int id)
     {
         int actionType = buffer.GetInt();
 
@@ -273,25 +205,13 @@ class TcpServer
                 break;
 
             case 5: // Player appearance change
-                PlayerData p = playerDatas.Find(p => p.id == id);
-                if (p != null)
-                {
-                    p.holo = buffer.GetInt();
-                    p.head = buffer.GetInt();
-                    p.face = buffer.GetInt();
-                    p.gloves = buffer.GetInt();
-                    p.upperbody = buffer.GetInt();
-                    p.lowerbody = buffer.GetInt();
-                    p.boots = buffer.GetInt();
-                    
-                }
-                //playerDatas[id - 1].holo = buffer.GetInt();
-                //playerDatas[id - 1].head = buffer.GetInt();
-                //playerDatas[id - 1].face = buffer.GetInt();
-                //playerDatas[id - 1].gloves = buffer.GetInt();
-                //playerDatas[id - 1].upperbody = buffer.GetInt();
-                //playerDatas[id - 1].lowerbody = buffer.GetInt();
-                //playerDatas[id - 1].boots = buffer.GetInt();
+                playerDatas[id - 1].holo = buffer.GetInt();
+                playerDatas[id - 1].head = buffer.GetInt();
+                playerDatas[id - 1].face = buffer.GetInt();
+                playerDatas[id - 1].gloves = buffer.GetInt();
+                playerDatas[id - 1].upperbody = buffer.GetInt();
+                playerDatas[id - 1].lowerbody = buffer.GetInt();
+                playerDatas[id - 1].boots = buffer.GetInt();
 
                 ByteBuffer appearanceSendBuffer = new ByteBuffer();
                 appearanceSendBuffer.Put((byte)2);
@@ -309,10 +229,6 @@ class TcpServer
                 SendToAllClients(appearanceSendBuffer.Trim().Get());
 
                 Console.WriteLine($"Player changed appearance: Holo {playerDatas[id - 1].holo}, Head {playerDatas[id - 1].head}, Face {playerDatas[id - 1].face}, Gloves {playerDatas[id - 1].gloves}, Upper Body {playerDatas[id - 1].upperbody}, Lower Body {playerDatas[id - 1].lowerbody}, Boots {playerDatas[id - 1].boots}");
-                break;
-
-            case 8:
-                Console.WriteLine($"Player {id} spawned.");
                 break;
 
             default:
@@ -377,12 +293,7 @@ class TcpServer
 
     static void Main(string[] args)
     {
-        // Load config file
-        ServerConfig config = ServerConfig.Load("config.json");
-
-        Console.WriteLine($"[Config] Starting server on {config.ip}:{config.port}");
-
-    TcpServer server = new TcpServer(config.ip, config.port);
-    server.Start();
+        TcpServer server = new TcpServer("127.0.0.1", 8001);
+        server.Start();
     }
 }
