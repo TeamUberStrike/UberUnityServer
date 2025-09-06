@@ -153,8 +153,39 @@ class TcpServer
         float yc = buffer.GetFloat();
         float zc = buffer.GetFloat();
 
-        //Console.WriteLine($"Player moved to: {x}, {y}, {z}");
+        var player = playerDatas.FirstOrDefault(p => p.id == id);
+        if (player != null)
+        {
+            player.x = x;
+            player.y = y;
+            player.z = z;
+            player.xr = xr;
+            player.yr = yr;
+            player.zr = zr;
+            player.xc = xc;
+            player.yc = yc;
+            player.zc = zc;
+        }
 
+
+        ByteBuffer response = new ByteBuffer();
+        response.Put((byte)1); // protocol type
+        response.Put(playerDatas.Count); // number of players to update
+        foreach (var playerData in playerDatas)
+        {
+            response.Put(playerData.id);
+            response.Put(playerData.x);
+            response.Put(playerData.y);
+            response.Put(playerData.z);
+            response.Put(playerData.xr);
+            response.Put(playerData.yr);
+            response.Put(playerData.zr);
+            response.Put(playerData.xc);
+            response.Put(playerData.yc);
+            response.Put(playerData.zc);
+        }
+
+        SendToAllClients(response.Trim().Get());
     }
 
     private void HandleGameActions(ByteBuffer buffer, int id)
