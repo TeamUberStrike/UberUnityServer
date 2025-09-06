@@ -9,17 +9,17 @@ public class PlayerData
     public string name = "not set";
 
     // Transform
-    float x = 0.0f;
-    float y = 0.0f;
-    float z = 0.0f;
+    public float x = 0.0f;
+    public float y = 0.0f;
+    public float z = 0.0f;
 
-    float xr = 0.0f;
-    float yr = 0.0f;
-    float zr = 0.0f;
+    public float xr = 0.0f;
+    public float yr = 0.0f;
+    public float zr = 0.0f;
 
-    float xc = 0.0f;
-    float yc = 0.0f;
-    float zc = 0.0f;
+    public float xc = 0.0f;
+    public float yc = 0.0f;
+    public float zc = 0.0f;
 
     //crouch
     public bool crouch = false;
