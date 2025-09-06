@@ -111,7 +111,7 @@ class TcpServer
         }
         else if (protocol == 1) // Player position update
         {
-            UpdatePlayerPositions(buffer);
+            UpdatePlayerPositions(buffer, id);
         }
         else if (protocol == 2) // Various game actions
         {
@@ -139,7 +139,7 @@ class TcpServer
         }
     }
 
-    private void UpdatePlayerPositions(ByteBuffer buffer)
+    private void UpdatePlayerPositions(ByteBuffer buffer, int id)
     {
         float x = buffer.GetFloat();
         float y = buffer.GetFloat();
