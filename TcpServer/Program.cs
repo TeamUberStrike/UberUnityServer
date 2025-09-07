@@ -84,7 +84,7 @@ class TcpServer
             }
         }
 
-    Console.WriteLine($"Client \"{id}\" disconnected. Current players: \"{playerDatas.Count}\"");
+        Console.WriteLine($"Client \"{id}\" disconnected. Current players: \"{playerDatas.Count}\"");
 
         // Broadcast leave message
         ByteBuffer response = new ByteBuffer();
@@ -307,12 +307,12 @@ class TcpServer
     {
         lock (clients)
         {
-            foreach (var kvp in clients)
+            foreach (var client in clients)
             {
-                if (kvp.Key == exceptId) continue;
+                if (client.Key == exceptId) continue;
                 try
                 {
-                    NetworkStream ns = kvp.Value.GetStream();
+                    NetworkStream ns = client.Value.GetStream();
                     if (ns.CanWrite)
                         ns.Write(data, 0, data.Length);
                 }
@@ -331,7 +331,7 @@ class TcpServer
     {
         ServerConfig config = ServerConfig.Load("config.json");
 
-    Console.WriteLine($"[Config] Starting server on \"{config.ip}\":\"{config.port}\"");
+        Console.WriteLine($"[Config] Starting server on \"{config.ip}\":\"{config.port}\"");
 
         TcpServer server = new TcpServer(config.ip, config.port);
         server.Start();
