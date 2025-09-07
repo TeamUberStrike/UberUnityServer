@@ -84,7 +84,7 @@ class TcpServer
             }
         }
 
-        Console.WriteLine($"Client \"{id}\" disconnected. Current players: \"{playerDatas.Count}\"");
+        Console.WriteLine($"Client \"{id}\" disconnected. Current count of players: \"{playerDatas.Count}\"");
 
         // Broadcast leave message
         ByteBuffer response = new ByteBuffer();
@@ -229,13 +229,13 @@ class TcpServer
                 float posX = buffer.GetFloat();
                 float posY = buffer.GetFloat();
                 float posZ = buffer.GetFloat();
-                Console.WriteLine($"Player \"{id}\" dealt \"{damageAmount}\" damage to \"{receiverId}\" (critical code \"{damageCriticalCode}\") at (\"{posX}\", \"{posY}\", \"{posZ}\")");
+                Console.WriteLine($"Player \"{id}\" dealt \"{damageAmount}\" damage to Player \"{receiverId}\" (critical code \"{damageCriticalCode}\") at (\"{posX}\", \"{posY}\", \"{posZ}\")");
                 break;
 
             case 3: // Player died
                 int killerId = buffer.GetInt();
                 int criticalCode = buffer.GetInt();
-                Console.WriteLine($"Player \"{id}\" was killed by \"{killerId}\" with critical code \"{criticalCode}\"");
+                Console.WriteLine($"Player \"{id}\" was killed by Player \"{killerId}\" with critical code \"{criticalCode}\"");
                 break;
 
             case 4: // Chat message
