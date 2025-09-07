@@ -24,13 +24,13 @@ class TcpServer
     public void Start()
     {
         listener.Start();
-        Console.WriteLine("Server started, waiting for connections...");
+    Console.WriteLine("Server started, waiting for connections...");
 
         while (isRunning)
         {
             TcpClient client = listener.AcceptTcpClient();
             int playerId = nextPlayerId++;
-            Console.WriteLine($"Client connected with id {playerId}.");
+            Console.WriteLine($"Client connected with id: \"{playerId}\"");
 
             lock (clients)
             {
@@ -61,7 +61,7 @@ class TcpServer
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Error] Client {id} exception: {ex.Message}");
+            Console.WriteLine($"[Error] Client: \"{id}\" exception: \"{ex.Message}\"");
         }
         finally
         {
@@ -88,7 +88,7 @@ class TcpServer
             }
         }
 
-        Console.WriteLine($"Client {id} disconnected. Current players: {playerDatas.Count}");
+    Console.WriteLine($"Client \"{id}\" disconnected. Current players: \"{playerDatas.Count}\"");
 
         // Broadcast leave message
         ByteBuffer response = new ByteBuffer();
@@ -125,7 +125,7 @@ class TcpServer
         }
 
         stream.Write(handshakeRequest.Trim().Get());
-        Console.WriteLine($"Handshake initiated with client {id}.");
+        Console.WriteLine($"Handshake initiated with client \"{id}\".");
     }
 
     private void ProcessPacket(byte[] data, int length, NetworkStream stream, int id)
@@ -168,7 +168,7 @@ class TcpServer
 
             SendToOtherClients(response.Trim().Get(), id);
 
-            Console.WriteLine($"Handshake completed for player {id}: {playerName}");
+            Console.WriteLine($"Handshake completed for player \"{id}\": \"{playerName}\"");
         }
     }
 
@@ -199,12 +199,12 @@ class TcpServer
         lock (playerDatas)
         {
             response.Put(playerDatas.Count);
-            foreach (var p in playerDatas.Values)
+            foreach (var player in playerDatas.Values)
             {
-                response.Put(p.id);
-                response.Put(p.x); response.Put(p.y); response.Put(p.z);
-                response.Put(p.xr); response.Put(p.yr); response.Put(p.zr);
-                response.Put(p.xc); response.Put(p.yc); response.Put(p.zc);
+                response.Put(player.id);
+                response.Put(player.x); response.Put(player.y); response.Put(player.z);
+                response.Put(player.xr); response.Put(player.yr); response.Put(player.zr);
+                response.Put(player.xc); response.Put(player.yc); response.Put(player.zc);
             }
         }
 
@@ -219,11 +219,11 @@ class TcpServer
         {
             case 0: // Change weapon
                 int weaponId = buffer.GetInt();
-                Console.WriteLine($"Player {id} changed weapon to {weaponId}");
+                Console.WriteLine($"Player \"{id}\" changed weapon to \"{weaponId}\"");
                 break;
 
             case 1: // Fire weapon
-                Console.WriteLine($"Player {id} fired their weapon.");
+                Console.WriteLine($"Player \"{id}\" fired their weapon.");
                 break;
 
             case 2: // Damage dealt to another player
@@ -233,18 +233,18 @@ class TcpServer
                 float posX = buffer.GetFloat();
                 float posY = buffer.GetFloat();
                 float posZ = buffer.GetFloat();
-                Console.WriteLine($"Player {id} dealt {damageAmount} damage to {receiverId} (critical code {damageCriticalCode}) at ({posX}, {posY}, {posZ})");
+                Console.WriteLine($"Player \"{id}\" dealt \"{damageAmount}\" damage to \"{receiverId}\" (critical code \"{damageCriticalCode}\") at (\"{posX}\", \"{posY}\", \"{posZ}\")");
                 break;
 
             case 3: // Player died
                 int killerId = buffer.GetInt();
                 int criticalCode = buffer.GetInt();
-                Console.WriteLine($"Player {id} was killed by {killerId} with critical code {criticalCode}");
+                Console.WriteLine($"Player \"{id}\" was killed by \"{killerId}\" with critical code \"{criticalCode}\"");
                 break;
 
             case 4: // Chat message
                 string message = buffer.GetString();
-                Console.WriteLine($"Chat message from Player {id}: {message}");
+                Console.WriteLine($"Chat message from Player \"{id}\": \"{message}\"");
 
                 ByteBuffer sendBuffer = new ByteBuffer();
                 sendBuffer.Put((byte)2);
@@ -280,12 +280,12 @@ class TcpServer
 
                     SendToAllClients(appearanceSendBuffer.Trim().Get());
 
-                    Console.WriteLine($"Player {id} changed appearance: Holo {player.holo}, Head {player.head}, Face {player.face}, Gloves {player.gloves}, Upper {player.upperbody}, Lower {player.lowerbody}, Boots {player.boots}");
+                    Console.WriteLine($"Player \"{id}\" changed appearance: Holo \"{player.holo}\", Head \"{player.head}\", Face \"{player.face}\", Gloves \"{player.gloves}\", Upper \"{player.upperbody}\", Lower \"{player.lowerbody}\", Boots \"{player.boots}\"");
                 }
                 break;
 
             default:
-                Console.WriteLine($"Unknown action type from player {id}");
+                Console.WriteLine($"Unknown action type from player \"{id}\"");
                 break;
         }
     }
@@ -335,7 +335,7 @@ class TcpServer
     {
         ServerConfig config = ServerConfig.Load("config.json");
 
-        Console.WriteLine($"[Config] Starting server on {config.ip}:{config.port}");
+    Console.WriteLine($"[Config] Starting server on \"{config.ip}\":\"{config.port}\"");
 
         TcpServer server = new TcpServer(config.ip, config.port);
         server.Start();
