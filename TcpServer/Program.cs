@@ -51,7 +51,7 @@ class TcpServer
 
                 while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
                 {
-                    ProcessPacket(buffer, stream, id);
+                    ProcessPacket(buffer, id);
                 }
             }
         }
@@ -124,7 +124,7 @@ class TcpServer
         Console.WriteLine($"Handshake initiated with client \"{id}\".");
     }
 
-    private void ProcessPacket(byte[] data, NetworkStream stream, int id)
+    private void ProcessPacket(byte[] data, int id)
     {
         ByteBuffer buffer = new ByteBuffer(data);
 
@@ -132,7 +132,7 @@ class TcpServer
 
         if (protocol == 0) // Handshake response
         {
-            HandleHandshake(buffer, stream, id);
+            HandleHandshake(buffer, id);
         }
         else if (protocol == 1) // Player position update
         {
@@ -144,7 +144,7 @@ class TcpServer
         }
     }
 
-    private void HandleHandshake(ByteBuffer buffer, NetworkStream stream, int id)
+    private void HandleHandshake(ByteBuffer buffer, int id)
     {
         if (buffer.GetInt() == SERIAL_Y && buffer.GetInt() == SERIAL_X)
         {
