@@ -1,12 +1,17 @@
-﻿using System.Net;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 
 class TcpServer
 {
     private TcpListener listener;
     private bool isRunning;
-    private List<TcpClient> clients = new List<TcpClient>();
-    private List<PlayerData> playerDatas = new List<PlayerData>();
+    private Dictionary<int, TcpClient> clients = new Dictionary<int, TcpClient>();
+    private Dictionary<int, PlayerData> playerDatas = new Dictionary<int, PlayerData>();
+    private int nextPlayerId = 1; // stable, unique IDs
     private const int SERIAL_X = 12345;
     private const int SERIAL_Y = 67890;
 
@@ -24,39 +29,73 @@ class TcpServer
         while (isRunning)
         {
             TcpClient client = listener.AcceptTcpClient();
-            Console.WriteLine("Client connected.");
-            clients.Add(client);
+            int playerId = nextPlayerId++;
+            Console.WriteLine($"Client connected with id {playerId}.");
 
-            Thread clientThread = new Thread(() => HandleClient(client, clients.Count));
+            lock (clients)
+            {
+                clients[playerId] = client;
+            }
+
+            Thread clientThread = new Thread(() => HandleClient(client, playerId));
             clientThread.Start();
         }
     }
 
     private void HandleClient(TcpClient client, int id)
     {
-        using (NetworkStream stream = client.GetStream())
+        try
         {
-            byte[] buffer = new byte[8192];
-            int bytesRead;
-
-            try
+            using (NetworkStream stream = client.GetStream())
             {
                 InitiateHandshake(stream, id);
+
+                byte[] buffer = new byte[8192];
+                int bytesRead;
 
                 while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
                 {
                     ProcessPacket(buffer, bytesRead, stream, id);
                 }
             }
-            finally
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Error] Client {id} exception: {ex.Message}");
+        }
+        finally
+        {
+            DisconnectClient(id);
+        }
+    }
+
+    private void DisconnectClient(int id)
+    {
+        lock (clients)
+        {
+            if (clients.ContainsKey(id))
             {
-                client.Close();
-                clients.Remove(client);
-                playerDatas.RemoveAll(player => player.id == id);
-                Console.WriteLine("Current amount of player datas: " + playerDatas.Count);
-                Console.WriteLine("Client disconnected.");
+                clients[id].Close();
+                clients.Remove(id);
             }
         }
+
+        lock (playerDatas)
+        {
+            if (playerDatas.ContainsKey(id))
+            {
+                playerDatas.Remove(id);
+            }
+        }
+
+        Console.WriteLine($"Client {id} disconnected. Current players: {playerDatas.Count}");
+
+        // Broadcast leave message
+        ByteBuffer response = new ByteBuffer();
+        response.Put((byte)2); // protocol
+        response.Put((byte)1); // player left
+        response.Put(id);
+        SendToAllClients(response.Trim().Get());
     }
 
     private void InitiateHandshake(NetworkStream stream, int id)
@@ -64,39 +103,29 @@ class TcpServer
         ByteBuffer handshakeRequest = new ByteBuffer();
         handshakeRequest.Put(SERIAL_X);
         handshakeRequest.Put(SERIAL_Y);
-
         handshakeRequest.Put(id);
 
-        
-        int playerCount = playerDatas.Count;
-        handshakeRequest.Put(playerCount);
-
-        foreach (var playerData in playerDatas)
+        lock (playerDatas)
         {
-            //id
-            int playerId = playerData.id;
-            handshakeRequest.Put(playerId);
-
-            //name
-            string name = playerData.name;
-            handshakeRequest.Put(name);
-
-            //appearance
-            handshakeRequest.Put(playerData.holo);
-            handshakeRequest.Put(playerData.head);
-            handshakeRequest.Put(playerData.face);
-            handshakeRequest.Put(playerData.gloves);
-            handshakeRequest.Put(playerData.upperbody);
-            handshakeRequest.Put(playerData.lowerbody);
-            handshakeRequest.Put(playerData.boots);
-
-            //player statistics
-            handshakeRequest.Put(playerData.kills);
-            handshakeRequest.Put(playerData.deaths);
+            handshakeRequest.Put(playerDatas.Count);
+            foreach (var playerData in playerDatas.Values)
+            {
+                handshakeRequest.Put(playerData.id);
+                handshakeRequest.Put(playerData.name);
+                handshakeRequest.Put(playerData.holo);
+                handshakeRequest.Put(playerData.head);
+                handshakeRequest.Put(playerData.face);
+                handshakeRequest.Put(playerData.gloves);
+                handshakeRequest.Put(playerData.upperbody);
+                handshakeRequest.Put(playerData.lowerbody);
+                handshakeRequest.Put(playerData.boots);
+                handshakeRequest.Put(playerData.kills);
+                handshakeRequest.Put(playerData.deaths);
+            }
         }
 
-        stream.Write(handshakeRequest.Trim().Get(), 0, handshakeRequest.Trim().Get().Length);
-        Console.WriteLine("Handshake initiated with client.");
+        stream.Write(handshakeRequest.Trim().Get());
+        Console.WriteLine($"Handshake initiated with client {id}.");
     }
 
     private void ProcessPacket(byte[] data, int length, NetworkStream stream, int id)
@@ -113,7 +142,7 @@ class TcpServer
         {
             UpdatePlayerPositions(buffer, id);
         }
-        else if (protocol == 2) // Various game actions
+        else if (protocol == 2) // Game actions
         {
             HandleGameActions(buffer, id);
         }
@@ -124,18 +153,22 @@ class TcpServer
         if (buffer.GetInt() == SERIAL_Y && buffer.GetInt() == SERIAL_X)
         {
             string playerName = buffer.GetString();
-            PlayerData newPlayer = new PlayerData(playerName);
-            newPlayer.id = id;
-            playerDatas.Add(newPlayer);
+            PlayerData newPlayer = new PlayerData(playerName) { id = id };
+
+            lock (playerDatas)
+            {
+                playerDatas[id] = newPlayer;
+            }
 
             ByteBuffer response = new ByteBuffer();
-            response.Put((byte)2); // protocol type
-            response.Put((byte)0); // player Joined
+            response.Put((byte)2); // protocol
+            response.Put((byte)0); // player joined
             response.Put(id);
             response.Put(playerName);
-            SendToOtherClients(response.Trim().Get(), id); // send to all except self(player id)
 
-            Console.WriteLine($"Handshake completed for player: {playerName}");
+            SendToOtherClients(response.Trim().Get(), id);
+
+            Console.WriteLine($"Handshake completed for player {id}: {playerName}");
         }
     }
 
@@ -144,45 +177,35 @@ class TcpServer
         float x = buffer.GetFloat();
         float y = buffer.GetFloat();
         float z = buffer.GetFloat();
-
         float xr = buffer.GetFloat();
         float yr = buffer.GetFloat();
         float zr = buffer.GetFloat();
-
         float xc = buffer.GetFloat();
         float yc = buffer.GetFloat();
         float zc = buffer.GetFloat();
 
-        var player = playerDatas.FirstOrDefault(p => p.id == id);
-        if (player != null)
+        lock (playerDatas)
         {
-            player.x = x;
-            player.y = y;
-            player.z = z;
-            player.xr = xr;
-            player.yr = yr;
-            player.zr = zr;
-            player.xc = xc;
-            player.yc = yc;
-            player.zc = zc;
+            if (playerDatas.TryGetValue(id, out var player))
+            {
+                player.x = x; player.y = y; player.z = z;
+                player.xr = xr; player.yr = yr; player.zr = zr;
+                player.xc = xc; player.yc = yc; player.zc = zc;
+            }
         }
 
-
         ByteBuffer response = new ByteBuffer();
-        response.Put((byte)1); // protocol type
-        response.Put(playerDatas.Count); // number of players to update
-        foreach (var playerData in playerDatas)
+        response.Put((byte)1);
+        lock (playerDatas)
         {
-            response.Put(playerData.id);
-            response.Put(playerData.x);
-            response.Put(playerData.y);
-            response.Put(playerData.z);
-            response.Put(playerData.xr);
-            response.Put(playerData.yr);
-            response.Put(playerData.zr);
-            response.Put(playerData.xc);
-            response.Put(playerData.yc);
-            response.Put(playerData.zc);
+            response.Put(playerDatas.Count);
+            foreach (var p in playerDatas.Values)
+            {
+                response.Put(p.id);
+                response.Put(p.x); response.Put(p.y); response.Put(p.z);
+                response.Put(p.xr); response.Put(p.yr); response.Put(p.zr);
+                response.Put(p.xc); response.Put(p.yc); response.Put(p.zc);
+            }
         }
 
         SendToAllClients(response.Trim().Get());
@@ -196,11 +219,11 @@ class TcpServer
         {
             case 0: // Change weapon
                 int weaponId = buffer.GetInt();
-                Console.WriteLine($"Player changed weapon to {weaponId}");
+                Console.WriteLine($"Player {id} changed weapon to {weaponId}");
                 break;
 
             case 1: // Fire weapon
-                Console.WriteLine("Player fired their weapon.");
+                Console.WriteLine($"Player {id} fired their weapon.");
                 break;
 
             case 2: // Damage dealt to another player
@@ -210,108 +233,94 @@ class TcpServer
                 float posX = buffer.GetFloat();
                 float posY = buffer.GetFloat();
                 float posZ = buffer.GetFloat();
-                Console.WriteLine($"Player dealt {damageAmount} damage to {receiverId} (critical code {damageCriticalCode}) at position ({posX}, {posY}, {posZ})");
+                Console.WriteLine($"Player {id} dealt {damageAmount} damage to {receiverId} (critical code {damageCriticalCode}) at ({posX}, {posY}, {posZ})");
                 break;
 
             case 3: // Player died
                 int killerId = buffer.GetInt();
                 int criticalCode = buffer.GetInt();
-                Console.WriteLine($"Player was killed by {killerId} with critical code {criticalCode}");
+                Console.WriteLine($"Player {id} was killed by {killerId} with critical code {criticalCode}");
                 break;
 
-            case 4: // Chat message received
-                string message = buffer.GetString(); // Read the length of the message
-                Console.WriteLine($"Chat message from Player: {message}");
-                //protocol 2, argument 6
+            case 4: // Chat message
+                string message = buffer.GetString();
+                Console.WriteLine($"Chat message from Player {id}: {message}");
+
                 ByteBuffer sendBuffer = new ByteBuffer();
                 sendBuffer.Put((byte)2);
                 sendBuffer.Put((byte)6);
-
                 sendBuffer.Put(id);
-
                 sendBuffer.Put(message);
 
                 SendToAllClients(sendBuffer.Trim().Get());
-
                 break;
 
-            case 5: // Player appearance change
-                playerDatas[id - 1].holo = buffer.GetInt();
-                playerDatas[id - 1].head = buffer.GetInt();
-                playerDatas[id - 1].face = buffer.GetInt();
-                playerDatas[id - 1].gloves = buffer.GetInt();
-                playerDatas[id - 1].upperbody = buffer.GetInt();
-                playerDatas[id - 1].lowerbody = buffer.GetInt();
-                playerDatas[id - 1].boots = buffer.GetInt();
+            case 5: // Appearance change
+                if (playerDatas.TryGetValue(id, out var player))
+                {
+                    player.holo = buffer.GetInt();
+                    player.head = buffer.GetInt();
+                    player.face = buffer.GetInt();
+                    player.gloves = buffer.GetInt();
+                    player.upperbody = buffer.GetInt();
+                    player.lowerbody = buffer.GetInt();
+                    player.boots = buffer.GetInt();
 
-                ByteBuffer appearanceSendBuffer = new ByteBuffer();
-                appearanceSendBuffer.Put((byte)2);
-                appearanceSendBuffer.Put((byte)7);
-                appearanceSendBuffer.Put(id);
+                    ByteBuffer appearanceSendBuffer = new ByteBuffer();
+                    appearanceSendBuffer.Put((byte)2);
+                    appearanceSendBuffer.Put((byte)7);
+                    appearanceSendBuffer.Put(id);
+                    appearanceSendBuffer.Put(player.holo);
+                    appearanceSendBuffer.Put(player.head);
+                    appearanceSendBuffer.Put(player.face);
+                    appearanceSendBuffer.Put(player.gloves);
+                    appearanceSendBuffer.Put(player.upperbody);
+                    appearanceSendBuffer.Put(player.lowerbody);
+                    appearanceSendBuffer.Put(player.boots);
 
-                appearanceSendBuffer.Put(playerDatas[id - 1].holo);
-                appearanceSendBuffer.Put(playerDatas[id - 1].head);
-                appearanceSendBuffer.Put(playerDatas[id - 1].face);
-                appearanceSendBuffer.Put(playerDatas[id - 1].gloves);
-                appearanceSendBuffer.Put(playerDatas[id - 1].upperbody);
-                appearanceSendBuffer.Put(playerDatas[id - 1].lowerbody);
-                appearanceSendBuffer.Put(playerDatas[id - 1].boots);
+                    SendToAllClients(appearanceSendBuffer.Trim().Get());
 
-                SendToAllClients(appearanceSendBuffer.Trim().Get());
-
-                Console.WriteLine($"Player changed appearance: Holo {playerDatas[id - 1].holo}, Head {playerDatas[id - 1].head}, Face {playerDatas[id - 1].face}, Gloves {playerDatas[id - 1].gloves}, Upper Body {playerDatas[id - 1].upperbody}, Lower Body {playerDatas[id - 1].lowerbody}, Boots {playerDatas[id - 1].boots}");
+                    Console.WriteLine($"Player {id} changed appearance: Holo {player.holo}, Head {player.head}, Face {player.face}, Gloves {player.gloves}, Upper {player.upperbody}, Lower {player.lowerbody}, Boots {player.boots}");
+                }
                 break;
 
             default:
-                Console.WriteLine("Unknown action type.");
+                Console.WriteLine($"Unknown action type from player {id}");
                 break;
         }
     }
 
     private void SendToAllClients(byte[] data)
     {
-        foreach (var client in clients)
+        lock (clients)
         {
-            try
+            foreach (var client in clients.Values.ToList())
             {
-                NetworkStream ns = client.GetStream();
-
-                if (ns.CanWrite)
+                try
                 {
-                    ns.Write(data, 0, data.Length);
+                    NetworkStream ns = client.GetStream();
+                    if (ns.CanWrite)
+                        ns.Write(data, 0, data.Length);
                 }
-
-            }
-            catch (SocketException se)
-            {
-                Console.WriteLine("SE:" + se);
+                catch { }
             }
         }
     }
 
-    private void SendToOtherClients(byte[] data, int allExceptId)
+    private void SendToOtherClients(byte[] data, int exceptId)
     {
-        for (int i = 0; i < clients.Count; i++)
+        lock (clients)
         {
-            var client = clients[i];
-            if (i == allExceptId-1)
+            foreach (var kvp in clients)
             {
-                continue;
-            }
-
-            try
-            {
-                NetworkStream ns = client.GetStream();
-
-                if (ns.CanWrite)
+                if (kvp.Key == exceptId) continue;
+                try
                 {
-                    ns.Write(data, 0, data.Length);
+                    NetworkStream ns = kvp.Value.GetStream();
+                    if (ns.CanWrite)
+                        ns.Write(data, 0, data.Length);
                 }
-
-            }
-            catch (SocketException se)
-            {
-                Console.WriteLine("SE:" + se);
+                catch { }
             }
         }
     }
