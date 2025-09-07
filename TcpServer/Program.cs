@@ -20,7 +20,7 @@ class TcpServer
     public void Start()
     {
         listener.Start();
-    Console.WriteLine("Server started, waiting for connections...");
+        Console.WriteLine("Server started, waiting for connections...");
 
         while (isRunning)
         {
