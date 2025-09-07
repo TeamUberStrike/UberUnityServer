@@ -51,7 +51,7 @@ class TcpServer
 
                 while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
                 {
-                    ProcessPacket(buffer, bytesRead, stream, id);
+                    ProcessPacket(buffer, stream, id);
                 }
             }
         }
@@ -124,7 +124,7 @@ class TcpServer
         Console.WriteLine($"Handshake initiated with client \"{id}\".");
     }
 
-    private void ProcessPacket(byte[] data, int length, NetworkStream stream, int id)
+    private void ProcessPacket(byte[] data, NetworkStream stream, int id)
     {
         ByteBuffer buffer = new ByteBuffer(data);
 
