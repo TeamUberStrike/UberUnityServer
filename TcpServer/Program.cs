@@ -10,9 +10,10 @@ class TcpServer
     private const int SERIAL_X = 12345;
     private const int SERIAL_Y = 67890;
 
-    public TcpServer(string ip, int port)
+    public TcpServer(int port)
     {
-        listener = new TcpListener(IPAddress.Parse(ip), port);
+        listener = new TcpListener(IPAddress.IPv6Any, port);
+        listener.Server.DualMode = true; // Support both IPv4 and IPv6
         isRunning = true;
     }
 
@@ -295,9 +296,9 @@ class TcpServer
     {
         ServerConfig config = ServerConfig.Load("config.json");
 
-        Console.WriteLine($"[Config] Starting server on {config.ip}:{config.port}");
+        Console.WriteLine($"[Config] Starting server on port {config.port}");
 
-        TcpServer server = new TcpServer(config.ip, config.port);
+        TcpServer server = new TcpServer(config.port);
         server.Start();
     }
 }
