@@ -1,7 +1,4 @@
-﻿using System;
-using System.Diagnostics;
-
-public class ByteBuffer
+﻿public class ByteBuffer
 {
     byte[] buffer;
     int pointer = 0;
