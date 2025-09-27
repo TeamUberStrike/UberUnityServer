@@ -1,9 +1,7 @@
 # Setup
-install Unity version: 2018.3.14f1: there is an option to install visual studio that belongs to it
+Open project with Unity.
 
 # Functionality
-
-The IP address is hard coded to: 127.0.0.1
 
 You can enter a match and send/receive chat messages using two clients and a server.
 Steps:
