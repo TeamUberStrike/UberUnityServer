@@ -217,6 +217,22 @@ class TcpServer
             case 0: // Change weapon
                 int weaponId = buffer.GetInt();
                 Console.WriteLine($"Player \"{id}\" changed weapon to \"{weaponId}\"");
+                lock (playerDatas)
+                {
+                    if (playerDatas.TryGetValue(id, out var weaponPlayer))
+                    {
+                        weaponPlayer.weapon = weaponId;
+                        weaponPlayer.weaponChanged = true;
+                    }
+                }
+                // relay so other clients render the weapon on this player's avatar
+                // (client handles protocol 2 / argument 2 -> PlayerChangeWeapon(id, weaponId))
+                ByteBuffer weaponBroadcast = new ByteBuffer();
+                weaponBroadcast.Put((byte)2); // protocol
+                weaponBroadcast.Put((byte)2); // argument 2 = change weapon
+                weaponBroadcast.Put(id);
+                weaponBroadcast.Put(weaponId);
+                SendToOtherClients(weaponBroadcast.Trim().Get(), id);
                 break;
 
             case 1: // Fire weapon
