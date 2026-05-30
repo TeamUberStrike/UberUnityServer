@@ -11,6 +11,10 @@ class TcpServer
     private const int SERIAL_X = 12345;
     private const int SERIAL_Y = 67890;
 
+    // Server-authoritative anti-cheat: no single hit may exceed this (defeats spoofed one-shots).
+    // TODO v2: per-weapon max from a weapon table, distance/line-of-sight + fire-rate limits, server-owned HP.
+    private const float MAX_DAMAGE = 200f;
+
     public TcpServer(int port)
     {
         listener = new TcpListener(IPAddress.IPv6Any, port);
@@ -223,20 +227,68 @@ class TcpServer
                 Console.WriteLine($"Player \"{id}\" fired their weapon.");
                 break;
 
-            case 2: // Damage dealt to another player
+            case 2: // Damage dealt to another player (SERVER-AUTHORITATIVE: validated before relay)
                 int receiverId = buffer.GetInt();
                 float damageAmount = buffer.GetFloat();
                 int damageCriticalCode = buffer.GetInt();
                 float posX = buffer.GetFloat();
                 float posY = buffer.GetFloat();
                 float posZ = buffer.GetFloat();
-                Console.WriteLine($"Player \"{id}\" dealt \"{damageAmount}\" damage to Player \"{receiverId}\" (critical code \"{damageCriticalCode}\") at (\"{posX}\", \"{posY}\", \"{posZ}\")");
+
+                PlayerData attackerData, victimData;
+                lock (playerDatas)
+                {
+                    playerDatas.TryGetValue(id, out attackerData);
+                    playerDatas.TryGetValue(receiverId, out victimData);
+                }
+
+                string rejectReason = null;
+                if (attackerData == null || victimData == null) rejectReason = "unknown player";
+                else if (receiverId == id) rejectReason = "self-damage";
+                else if (damageAmount <= 0f) rejectReason = "non-positive damage";
+                else if (damageAmount > MAX_DAMAGE) rejectReason = $"damage {damageAmount} over cap {MAX_DAMAGE}";
+
+                if (rejectReason != null)
+                {
+                    // The server is the authority: drop the packet, the victim never takes the hit.
+                    Console.WriteLine($"[ANTICHEAT] REJECTED damage from \"{id}\" -> \"{receiverId}\" ({damageAmount}): {rejectReason}");
+                    break;
+                }
+
+                Console.WriteLine($"Player \"{id}\" dealt \"{damageAmount}\" damage to Player \"{receiverId}\" (crit \"{damageCriticalCode}\")");
+
+                // relay the validated damage ONLY to the victim; their client applies it
+                // (client handles protocol 2 / argument 4 -> DamageReceived(dealerId, amount, crit, pos))
+                ByteBuffer dmgRelay = new ByteBuffer();
+                dmgRelay.Put((byte)2); // protocol
+                dmgRelay.Put((byte)4); // argument 4 = damage received
+                dmgRelay.Put(id);      // dealerId (attacker)
+                dmgRelay.Put(damageAmount);
+                dmgRelay.Put(damageCriticalCode);
+                dmgRelay.Put(posX);
+                dmgRelay.Put(posY);
+                dmgRelay.Put(posZ);
+                SendToClient(receiverId, dmgRelay.Trim().Get());
                 break;
 
-            case 3: // Player died
+            case 3: // Player died (victim reports it after taking server-approved damage)
                 int killerId = buffer.GetInt();
                 int criticalCode = buffer.GetInt();
-                Console.WriteLine($"Player \"{id}\" was killed by Player \"{killerId}\" with critical code \"{criticalCode}\"");
+                Console.WriteLine($"Player \"{id}\" was killed by Player \"{killerId}\" (crit \"{criticalCode}\")");
+                lock (playerDatas)
+                {
+                    if (playerDatas.TryGetValue(id, out var deadData)) deadData.deaths++;
+                    if (killerId >= 0 && playerDatas.TryGetValue(killerId, out var killerData)) killerData.kills++;
+                }
+                // broadcast the death so every client sees it
+                // (client handles protocol 2 / argument 5 -> PlayerDied(killedId, killerId, crit))
+                ByteBuffer deathBroadcast = new ByteBuffer();
+                deathBroadcast.Put((byte)2); // protocol
+                deathBroadcast.Put((byte)5); // argument 5 = player died
+                deathBroadcast.Put(id);       // killedId
+                deathBroadcast.Put(killerId); // killerId
+                deathBroadcast.Put(criticalCode);
+                SendToAllClients(deathBroadcast.Trim().Get());
                 break;
 
             case 4: // Chat message
@@ -314,6 +366,23 @@ class TcpServer
                 try
                 {
                     NetworkStream ns = client.Value.GetStream();
+                    if (ns.CanWrite)
+                        ns.Write(data, 0, data.Length);
+                }
+                catch { }
+            }
+        }
+    }
+
+    private void SendToClient(int targetId, byte[] data)
+    {
+        lock (clients)
+        {
+            if (clients.TryGetValue(targetId, out var client))
+            {
+                try
+                {
+                    NetworkStream ns = client.GetStream();
                     if (ns.CanWrite)
                         ns.Write(data, 0, data.Length);
                 }
